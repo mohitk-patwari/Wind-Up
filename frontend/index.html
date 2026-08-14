@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wind-Up — a music box that has never played this before</title>
+<meta name="description" content="Describe a feeling. A music box punches a paper strip and plays it back." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<style>
+  :root{
+    --lacquer:#16302B;
+    --lacquer-deep:#0C1B18;
+    --brass:#C9A227;
+    --brass-dim:#7E6A2A;
+    --paper:#E8DFC8;
+    --paper-shade:#D6CAAC;
+    --ink:#22201A;
+    --ember:#C4603F;
+    --strip-h:216px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--lacquer-deep);
+    background-image:radial-gradient(120% 80% at 50% 0%, #1B3A33 0%, var(--lacquer-deep) 70%);
+    color:var(--paper);
+    font-family:Inter,system-ui,sans-serif;
+    min-height:100vh;
+    padding:clamp(20px,5vw,56px) clamp(16px,5vw,32px) 72px;
+  }
+  .sheet{max-width:940px;margin:0 auto}
+
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--brass-dim);margin:0 0 14px;
+  }
+  h1{
+    font-family:"Instrument Serif",Georgia,serif;font-weight:400;
+    font-size:clamp(52px,11vw,104px);line-height:.9;margin:0;color:var(--paper);
+  }
+  h1 em{font-style:italic;color:var(--brass)}
+  .lede{
+    max-width:44ch;margin:18px 0 40px;font-size:16px;line-height:1.6;
+    color:rgba(232,223,200,.72);
+  }
+
+  /* ---- the box ---- */
+  .box{
+    background:linear-gradient(180deg,#1D3D36,#122A25);
+    border:1px solid rgba(201,162,39,.28);
+    border-radius:4px;
+    box-shadow:0 24px 60px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
+    padding:18px;
+  }
+  .window{
+    position:relative;height:var(--strip-h);overflow:hidden;
+    background:var(--paper);
+    border-radius:2px;
+    box-shadow:inset 0 0 0 1px rgba(34,32,26,.25), inset 0 12px 26px -12px rgba(34,32,26,.45);
+  }
+  .window svg{position:absolute;top:0;left:0;display:block}
+  .playhead{
+    position:absolute;top:0;bottom:0;left:132px;width:2px;
+    background:linear-gradient(180deg,transparent,var(--ember),transparent);
+    opacity:.85;pointer-events:none;
+  }
+  .window::after{ /* the box lid casting shade over the strip edges */
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(90deg,rgba(18,42,37,.5),transparent 14%,transparent 86%,rgba(18,42,37,.5));
+  }
+  .empty{
+    position:absolute;inset:0;display:grid;place-items:center;
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.14em;
+    text-transform:uppercase;color:rgba(34,32,26,.4);text-align:center;padding:0 20px;
+  }
+
+  .readout{
+    display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px;
+    padding:14px 4px 2px;
+  }
+  .readout .title{font-family:"Instrument Serif",serif;font-size:26px;color:var(--brass)}
+  .readout .meta{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:rgba(232,223,200,.45);
+  }
+
+  /* ---- controls ---- */
+  .controls{margin-top:28px;display:grid;gap:14px}
+  label.field{display:block}
+  .field span{
+    display:block;font-family:"IBM Plex Mono",monospace;font-size:11px;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--brass-dim);margin-bottom:8px;
+  }
+  input[type=text]{
+    width:100%;padding:15px 16px;font:inherit;font-size:17px;color:var(--paper);
+    background:rgba(0,0,0,.28);border:1px solid rgba(201,162,39,.26);border-radius:3px;
+  }
+  input[type=text]::placeholder{color:rgba(232,223,200,.34)}
+  input[type=text]:focus-visible,button:focus-visible{
+    outline:2px solid var(--brass);outline-offset:2px;
+  }
+  .row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+  .modes{display:flex;gap:8px}
+  .mode{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;padding:10px 14px;cursor:pointer;color:rgba(232,223,200,.6);
+    background:transparent;border:1px solid rgba(201,162,39,.26);border-radius:3px;
+  }
+  .mode[aria-pressed=true]{background:var(--brass);border-color:var(--brass);color:var(--lacquer-deep)}
+  .actions{display:flex;gap:10px;flex-wrap:wrap}
+  .crank{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;padding:14px 26px;cursor:pointer;
+    background:var(--brass);color:var(--lacquer-deep);border:0;border-radius:3px;font-weight:500;
+  }
+  .crank[disabled]{opacity:.45;cursor:progress}
+  .ghost{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;padding:14px 20px;cursor:pointer;color:var(--paper);
+    background:transparent;border:1px solid rgba(201,162,39,.3);border-radius:3px;
+  }
+  .ghost[disabled]{opacity:.35;cursor:not-allowed}
+  .status{
+    min-height:20px;font-family:"IBM Plex Mono",monospace;font-size:12px;
+    letter-spacing:.06em;color:var(--ember);
+  }
+  footer{
+    margin-top:56px;padding-top:20px;border-top:1px solid rgba(201,162,39,.16);
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:rgba(232,223,200,.34);line-height:2;
+  }
+  @media (max-width:560px){
+    .playhead{left:64px}
+    .row{flex-direction:column;align-items:stretch}
+    .actions .crank,.actions .ghost{flex:1}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="sheet">
+  <p class="eyebrow">Weekend Creative Challenge · #creative-expression</p>
+  <h1>Wind&#8209;<em>Up</em></h1>
+  <p class="lede">Tell it how something felt. It punches a paper strip, feeds it through the comb,
+     and plays you a melody nobody has heard before.</p>
+
+  <section class="box">
+    <div class="window" id="window">
+      <svg id="strip" width="0" height="216" aria-hidden="true"></svg>
+      <div class="playhead"></div>
+      <p class="empty" id="empty">Nothing punched yet</p>
+    </div>
+    <div class="readout">
+      <span class="title" id="title"></span>
+      <span class="meta" id="meta"></span>
+    </div>
+  </section>
+
+  <div class="controls">
+    <label class="field">
+      <span>The feeling</span>
+      <input type="text" id="phrase" maxlength="200"
+             placeholder="the last train home, half empty" autocomplete="off" />
+    </label>
+    <div class="row">
+      <div>
+        <span class="field" style="display:block"><span>Mode</span></span>
+        <div class="modes" id="modes" role="group" aria-label="Mode">
+          <button class="mode" data-mode="major" aria-pressed="true">Major</button>
+          <button class="mode" data-mode="minor" aria-pressed="false">Minor</button>
+          <button class="mode" data-mode="pentatonic" aria-pressed="false">Pentatonic</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="ghost" id="save" disabled>Save strip</button>
+        <button class="crank" id="wind">Wind it up</button>
+      </div>
+    </div>
+    <p class="status" id="status" role="status"></p>
+  </div>
+
+  <footer>
+    Amazon Bedrock (Nova Micro) · AWS Lambda · Amazon S3<br />
+    The model writes the notes. Python decides what is playable.
+  </footer>
+</main>
+
+<script>
+/* ------------------------------------------------------------------ */
+/* PASTE YOUR LAMBDA FUNCTION URL HERE (keep the quotes, no trailing /) */
+const API_URL = "REPLACE_WITH_YOUR_LAMBDA_FUNCTION_URL";
+/* ------------------------------------------------------------------ */
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const PX_PER_BEAT = 62;
+const STRIP_H = 216;
+const PAD = 132;                     // playhead offset from the left edge
+
+const el = id => document.getElementById(id);
+const stripEl = el("strip");
+const statusEl = el("status");
+const windBtn = el("wind");
+const saveBtn = el("save");
+
+let mode = "major";
+let melody = null;
+let noteEls = [];
+let synth, reverb, part, raf;
+
+/* ---------- mode buttons ---------- */
+el("modes").addEventListener("click", e => {
+  const btn = e.target.closest(".mode");
+  if (!btn) return;
+  mode = btn.dataset.mode;
+  [...el("modes").children].forEach(b =>
+    b.setAttribute("aria-pressed", String(b === btn)));
+});
+
+/* ---------- audio ---------- */
+function ensureSynth() {
+  if (synth) return;
+  reverb = new Tone.Freeverb({ roomSize: 0.72, dampening: 2600, wet: 0.28 }).toDestination();
+  synth = new Tone.PolySynth(Tone.FMSynth, {
+    harmonicity: 3.01,
+    modulationIndex: 9,
+    oscillator: { type: "sine" },
+    envelope: { attack: 0.001, decay: 1.4, sustain: 0, release: 1.4 },
+    modulation: { type: "square" },
+    modulationEnvelope: { attack: 0.002, decay: 0.22, sustain: 0, release: 0.2 },
+  }).connect(reverb);
+  synth.volume.value = -9;
+}
+
+/* ---------- the punched strip ---------- */
+function drawStrip(m) {
+  stripEl.innerHTML = "";
+  noteEls = [];
+
+  const pitches = [...new Set(m.notes.map(n => n.n))]
+    .sort((a, b) => midi(a) - midi(b));
+  const rowH = STRIP_H / (pitches.length + 1);
+  const rowOf = name => STRIP_H - (pitches.indexOf(name) + 1) * rowH;
+
+  const end = Math.max(...m.notes.map(n => n.t + n.d));
+  const width = PAD * 2 + end * PX_PER_BEAT;
+  stripEl.setAttribute("width", width);
+  stripEl.setAttribute("height", STRIP_H);
+
+  // perforation rails along the top and bottom of the paper
+  for (let x = 10; x < width; x += 16) {
+    for (const y of [7, STRIP_H - 7]) {
+      const dot = document.createElementNS(SVG_NS, "circle");
+      dot.setAttribute("cx", x); dot.setAttribute("cy", y); dot.setAttribute("r", 1.6);
+      dot.setAttribute("fill", "#22201A"); dot.setAttribute("opacity", ".2");
+      stripEl.appendChild(dot);
+    }
+  }
+  // one faint track line per tooth of the comb
+  pitches.forEach(p => {
+    const line = document.createElementNS(SVG_NS, "line");
+    line.setAttribute("x1", 0); line.setAttribute("x2", width);
+    line.setAttribute("y1", rowOf(p) + rowH / 2); line.setAttribute("y2", rowOf(p) + rowH / 2);
+    line.setAttribute("stroke", "#22201A"); line.setAttribute("stroke-width", ".5");
+    line.setAttribute("opacity", ".14");
+    stripEl.appendChild(line);
+  });
+
+  // the holes
+  m.notes.forEach(n => {
+    const h = Math.min(rowH * 0.62, 15);
+    const g = document.createElementNS(SVG_NS, "rect");
+    g.setAttribute("x", PAD + n.t * PX_PER_BEAT);
+    g.setAttribute("y", rowOf(n.n) + (rowH - h) / 2);
+    g.setAttribute("width", Math.max(10, n.d * PX_PER_BEAT - 5));
+    g.setAttribute("height", h);
+    g.setAttribute("rx", h / 2);
+    g.setAttribute("fill", "#22201A");
+    g.setAttribute("opacity", ".82");
+    stripEl.appendChild(g);
+    noteEls.push({ node: g, t: n.t, d: n.d });
+  });
+}
+
+function midi(name) {
+  const NAMES = { C:0,"C#":1,D:2,"D#":3,E:4,F:5,"F#":6,G:7,"G#":8,A:9,"A#":10,B:11 };
+  const m = name.match(/^([A-G]#?)(-?\d)$/);
+  return (parseInt(m[2], 10) + 1) * 12 + NAMES[m[1]];
+}
+
+/* ---------- playback + scroll ---------- */
+function play(m) {
+  ensureSynth();
+  Tone.Transport.stop();
+  Tone.Transport.cancel();
+  if (part) part.dispose();
+
+  Tone.Transport.bpm.value = m.tempo;
+  const secPerBeat = 60 / m.tempo;
+  part = new Tone.Part((time, n) => {
+    synth.triggerAttackRelease(n.n, Math.max(0.15, n.d * secPerBeat), time);
+  }, m.notes.map(n => [n.t * secPerBeat, n])).start(0);
+
+  const end = Math.max(...m.notes.map(n => n.t + n.d));
+  Tone.Transport.start("+0.15");
+
+  cancelAnimationFrame(raf);
+  const tick = () => {
+    const beat = Tone.Transport.seconds * (m.tempo / 60);
+    stripEl.style.transform = `translateX(${-beat * PX_PER_BEAT}px)`;
+    noteEls.forEach(n => {
+      const on = beat >= n.t && beat < n.t + n.d;
+      n.node.setAttribute("fill", on ? "#C4603F" : "#22201A");
+      n.node.setAttribute("opacity", on ? "1" : ".82");
+    });
+    if (beat < end + 2) raf = requestAnimationFrame(tick);
+    else { Tone.Transport.stop(); statusEl.textContent = ""; }
+  };
+  raf = requestAnimationFrame(tick);
+}
+
+/* ---------- wind it up ---------- */
+async function wind() {
+  const phrase = el("phrase").value.trim();
+  if (!phrase) { statusEl.textContent = "Give it something to work with."; el("phrase").focus(); return; }
+  if (API_URL.startsWith("REPLACE")) { statusEl.textContent = "Set API_URL in index.html first."; return; }
+
+  windBtn.disabled = true;
+  windBtn.textContent = "Punching…";
+  statusEl.textContent = "";
+
+  try {
+    await Tone.start();                       // browsers need a gesture first
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phrase, mode }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "The box jammed.");
+
+    melody = data;
+    el("empty").style.display = "none";
+    el("title").textContent = data.title;
+    el("meta").textContent = `${data.notes.length} notes · ${data.tempo} bpm · ${data.mode}`;
+    stripEl.style.transform = "translateX(0)";
+    drawStrip(data);
+    saveBtn.disabled = false;
+    play(data);
+  } catch (err) {
+    statusEl.textContent = err.message;
+  } finally {
+    windBtn.disabled = false;
+    windBtn.textContent = melody ? "Wind it again" : "Wind it up";
+  }
+}
+
+windBtn.addEventListener("click", wind);
+el("phrase").addEventListener("keydown", e => { if (e.key === "Enter") wind(); });
+
+saveBtn.addEventListener("click", () => {
+  if (!melody) return;
+  const clone = stripEl.cloneNode(true);
+  clone.setAttribute("xmlns", SVG_NS);
+  clone.style.transform = "";
+  const rect = document.createElementNS(SVG_NS, "rect");
+  rect.setAttribute("width", "100%"); rect.setAttribute("height", "100%");
+  rect.setAttribute("fill", "#E8DFC8");
+  clone.insertBefore(rect, clone.firstChild);
+  const url = URL.createObjectURL(new Blob([clone.outerHTML], { type: "image/svg+xml" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = melody.title.replace(/\s+/g, "-").toLowerCase() + "-strip.svg";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
