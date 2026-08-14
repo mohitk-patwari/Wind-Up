@@ -1,7 +1,6 @@
 # Wind-Up — run and deploy
 
-Describe a feeling → Amazon Bedrock (Nova Micro) composes a melody → Python quantizes
-it → a punched paper strip scrolls through a music box and plays it.
+Describe a feeling → an AWS Lambda composer turns your phrase into a melody → a punched paper strip scrolls through a music box and plays it.
 
 ```
 windup/
